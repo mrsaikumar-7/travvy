@@ -1,0 +1,151 @@
+# Travvy - Docker Compose Configuration
+version: '3.8'
+
+services:
+  # Main FastAPI Application
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AI_TRIP_ENVIRONMENT=development
+      - AI_TRIP_REDIS_URL=redis://redis:6379
+      - AI_TRIP_CELERY_BROKER_URL=redis://redis:6379/0
+      - AI_TRIP_CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AI_TRIP_DEBUG=true
+      - AI_TRIP_GCP_PROJECT_ID=trip-planner-471313
+      - AI_TRIP_GOOGLE_APPLICATION_CREDENTIALS=/app/trip-planner-471313-05d3027a3324.json
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    networks:
+      - travvy-network
+
+  # Celery Worker for AI Processing
+  celery-worker-ai:
+    build: .
+    command: celery -A app.core.celery worker --loglevel=info --queues=ai_processing,ai_processing_high
+    environment:
+      - AI_TRIP_ENVIRONMENT=development
+      - AI_TRIP_REDIS_URL=redis://redis:6379
+      - AI_TRIP_CELERY_BROKER_URL=redis://redis:6379/0
+      - AI_TRIP_CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AI_TRIP_GCP_PROJECT_ID=trip-planner-471313
+      - AI_TRIP_GOOGLE_APPLICATION_CREDENTIALS=/app/trip-planner-471313-05d3027a3324.json
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    networks:
+      - travvy-network
+
+  # Celery Worker for Trip Processing
+  celery-worker-trips:
+    build: .
+    command: celery -A app.core.celery worker --loglevel=info --queues=trip_processing,notifications
+    environment:
+      - AI_TRIP_ENVIRONMENT=development
+      - AI_TRIP_REDIS_URL=redis://redis:6379
+      - AI_TRIP_CELERY_BROKER_URL=redis://redis:6379/0
+      - AI_TRIP_CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AI_TRIP_GCP_PROJECT_ID=trip-planner-471313
+      - AI_TRIP_GOOGLE_APPLICATION_CREDENTIALS=/app/trip-planner-471313-05d3027a3324.json
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    networks:
+      - travvy-network
+
+  # Celery Worker for Analytics and Maintenance
+  celery-worker-maintenance:
+    build: .
+    command: celery -A app.core.celery worker --loglevel=info --queues=analytics,maintenance
+    environment:
+      - AI_TRIP_ENVIRONMENT=development
+      - AI_TRIP_REDIS_URL=redis://redis:6379
+      - AI_TRIP_CELERY_BROKER_URL=redis://redis:6379/0
+      - AI_TRIP_CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AI_TRIP_GCP_PROJECT_ID=trip-planner-471313
+      - AI_TRIP_GOOGLE_APPLICATION_CREDENTIALS=/app/trip-planner-471313-05d3027a3324.json
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    networks:
+      - travvy-network
+
+  # Celery Beat Scheduler
+  celery-beat:
+    build: .
+    command: celery -A app.core.celery beat --loglevel=info
+    environment:
+      - AI_TRIP_ENVIRONMENT=development
+      - AI_TRIP_REDIS_URL=redis://redis:6379
+      - AI_TRIP_CELERY_BROKER_URL=redis://redis:6379/0
+      - AI_TRIP_CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - AI_TRIP_GCP_PROJECT_ID=trip-planner-471313
+      - AI_TRIP_GOOGLE_APPLICATION_CREDENTIALS=/app/trip-planner-471313-05d3027a3324.json
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    networks:
+      - travvy-network
+
+  # Redis for Caching and Message Broker
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - travvy-network
+
+  # Flower for Celery Monitoring
+  flower:
+    build: .
+    command: celery -A app.core.celery flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - AI_TRIP_REDIS_URL=redis://redis:6379
+      - AI_TRIP_CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - travvy-network
+
+  # Nginx Reverse Proxy (Optional for production-like setup)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    networks:
+      - travvy-network
+    profiles:
+      - production
+
+volumes:
+  redis_data:
+
+networks:
+  travvy-network:
+    driver: bridge

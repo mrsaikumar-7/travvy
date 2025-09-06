@@ -1,0 +1,65 @@
+# FastAPI and ASGI server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Database and ORM
+google-cloud-firestore==2.13.1
+redis==4.6.0
+
+# Task Queue
+celery[redis]==5.3.4
+flower==2.0.1
+
+# Google Cloud Services
+google-cloud-aiplatform==1.38.1
+google-cloud-vision==3.4.5
+google-cloud-speech==2.22.0
+google-cloud-storage==2.10.0
+google-cloud-monitoring==2.16.0
+google-cloud-logging==3.8.0
+google-generativeai==0.3.2
+
+# Authentication and Security
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+PyJWT==2.8.0
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+
+# HTTP and WebSocket
+httpx==0.25.2
+websockets==12.0
+python-socketio[asyncio]==5.10.0
+
+# Data Validation and Serialization
+pydantic[email]==2.5.0
+pydantic-settings==2.0.3
+
+# Utilities
+python-dotenv==1.0.0
+structlog==23.2.0
+rich==13.7.0
+typer==0.9.0
+
+# Image Processing
+Pillow==10.1.0
+
+# Mathematical and Scientific Computing
+numpy==1.25.2
+scipy==1.11.4
+
+# Development Dependencies
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-mock==3.12.0
+httpx==0.25.2
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Production Dependencies
+gunicorn==21.2.0
+sentry-sdk[fastapi]==1.38.0
