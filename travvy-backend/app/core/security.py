@@ -7,6 +7,7 @@ and user authentication/authorization for the API.
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security.utils import get_authorization_scheme_param
 from google.oauth2 import id_token
 from google.auth.transport import requests
 import jwt
@@ -19,7 +20,7 @@ from app.models.schemas import User
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)  # Don't auto-error if no auth provided - handled in get_current_user
 
 
 class SecurityService:
@@ -268,7 +269,7 @@ class PermissionChecker:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Dict[str, Any]:
     """
     FastAPI dependency for getting current authenticated user.
@@ -282,12 +283,19 @@ async def get_current_user(
     Raises:
         HTTPException: If authentication fails
     """
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header missing",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     try:
-        # Verify the token
+        # Verify the access token
         user_id = security_service.verify_access_token(credentials.credentials)
         
-        # TODO: Get user from database
-        # For now, return basic user info
+        # TODO: Get full user info from database
+        # For now, return basic user info with the verified user_id
         user_info = {
             "uid": user_id,
             "authenticated": True
@@ -302,7 +310,8 @@ async def get_current_user(
         logger.error(f"Authentication error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed"
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
 
@@ -326,6 +335,54 @@ async def get_current_active_user(
         )
     
     return current_user
+
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Dict[str, Any]:
+    """
+    FastAPI dependency for getting current user with optional authentication.
+    Used for endpoints that can work with or without authentication.
+    
+    Args:
+        credentials: HTTP authorization credentials
+        
+    Returns:
+        Current user information or demo user
+    """
+    try:
+        if credentials and credentials.credentials:
+            # Verify the token if provided
+            user_id = security_service.verify_access_token(credentials.credentials)
+            
+            user_info = {
+                "uid": user_id,
+                "authenticated": True
+            }
+            
+            logger.debug(f"User authenticated: {user_id}")
+            return user_info
+        else:
+            # Return demo user for unauthenticated requests
+            logger.debug("No authentication provided, using demo user")
+            return {
+                "uid": "demo-user-123",
+                "authenticated": False,
+                "email": "demo@example.com",
+                "display_name": "Demo User",
+                "preferences": {}
+            }
+        
+    except Exception as e:
+        # If authentication fails, fallback to demo user
+        logger.warning(f"Authentication failed, using demo user: {str(e)}")
+        return {
+            "uid": "demo-user-123", 
+            "authenticated": False,
+            "email": "demo@example.com",
+            "display_name": "Demo User",
+            "preferences": {}
+        }
 
 
 # Permission decorators

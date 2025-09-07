@@ -16,6 +16,7 @@ from enum import Enum
 class TripStatus(str, Enum):
     """Trip status enumeration."""
     PLANNING = "planning"
+    GENERATING = "generating"
     CONFIRMED = "confirmed"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -167,7 +168,7 @@ class Activity(BaseModel):
     category: str = ""
     rating: Optional[float] = None
     images: List[str] = []
-    bookingInfo: Optional[Dict[str, Any]] = None
+    bookingInfo: Optional[Union[Dict[str, Any], str]] = None
     accessibility: AccessibilityInfo = AccessibilityInfo()
     tags: List[str] = []
 
@@ -177,8 +178,8 @@ class Meal(BaseModel):
     type: str  # breakfast, lunch, dinner
     restaurant: str
     cuisine: str
-    budgetRange: str
-    location: Location
+    budgetRange: Optional[str] = "moderate"
+    location: Optional[Location] = None
     specialties: List[str] = []
 
 
@@ -192,6 +193,18 @@ class Transportation(BaseModel):
     bookingInfo: Optional[str] = None
 
 
+class Accommodation(BaseModel):
+    """Accommodation details for a day."""
+    name: str
+    type: Optional[str] = "hotel"  # hotel, airbnb, hostel, etc. - default for backward compatibility
+    rating: Optional[float] = None
+    priceRange: Optional[str] = None
+    pricing: Optional[float] = None  # Legacy field for backward compatibility
+    location: Optional[Location] = None
+    amenities: List[str] = []
+    bookingInfo: Optional[str] = None
+
+
 class DayPlan(BaseModel):
     """Single day itinerary plan."""
     day: int
@@ -200,7 +213,7 @@ class DayPlan(BaseModel):
     activities: List[Activity] = []
     transportation: List[Transportation] = []
     meals: List[Meal] = []
-    accommodation: Optional[str] = None
+    accommodation: Optional[Accommodation] = None
     totalBudget: float = 0
     notes: Optional[str] = None
 

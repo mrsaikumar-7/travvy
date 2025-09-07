@@ -69,6 +69,25 @@ class TripService:
             # Generate trip ID
             trip_id = str(uuid.uuid4())
             
+            # Convert dates to datetime objects if they're date objects
+            from datetime import date
+            if isinstance(start_date, str):
+                start_dt = datetime.fromisoformat(start_date)
+            elif isinstance(start_date, date) and not isinstance(start_date, datetime):
+                start_dt = datetime.combine(start_date, datetime.min.time())
+            else:
+                start_dt = start_date
+                
+            if isinstance(end_date, str):
+                end_dt = datetime.fromisoformat(end_date)
+            elif isinstance(end_date, date) and not isinstance(end_date, datetime):
+                end_dt = datetime.combine(end_date, datetime.min.time())
+            else:
+                end_dt = end_date
+            
+            # Calculate duration
+            duration_days = (end_dt - start_dt).days
+            
             # Create trip data
             trip_data = {
                 "tripId": trip_id,
@@ -90,9 +109,9 @@ class TripService:
                         "city": ""
                     },
                     "dates": {
-                        "startDate": start_date,
-                        "endDate": end_date,
-                        "duration": 0,  # Calculate duration
+                        "startDate": start_dt,
+                        "endDate": end_dt,
+                        "duration": duration_days,
                         "flexible": False
                     },
                     "travelers": {
@@ -121,7 +140,7 @@ class TripService:
                 },
                 "itinerary": [],
                 "hotels": [],
-                "status": "planning",
+                "status": "generating",
                 "version": 1,
                 "createdAt": datetime.utcnow(),
                 "updatedAt": datetime.utcnow()
@@ -199,11 +218,11 @@ class TripService:
             if status_filter:
                 filters.append(("status", "==", status_filter))
             
-            # Get paginated results
+            # Get paginated results - removed order_by to avoid Firestore index requirement
             result = await db.paginated_query(
                 collection=self.collection_name,
                 filters=filters,
-                order_by="createdAt",
+                order_by=None,  # Removed ordering to avoid composite index requirement
                 limit=limit,
                 start_after=None  # TODO: Implement proper pagination
             )
@@ -440,4 +459,66 @@ class TripService:
             
         except Exception as e:
             logger.error(f"Failed to duplicate trip {original_trip_id}: {str(e)}")
+            raise
+    
+    async def update_trip_with_ai_results(
+        self,
+        trip_id: str,
+        itinerary_data: Dict[str, Any],
+        hotel_data: List[Dict[str, Any]],
+        ai_metadata: Dict[str, Any]
+    ) -> bool:
+        """
+        Update trip with AI generation results.
+        
+        Args:
+            trip_id: Trip ID to update
+            itinerary_data: Generated itinerary data
+            hotel_data: Generated hotel recommendations
+            ai_metadata: AI generation metadata
+            
+        Returns:
+            True if successful
+        """
+        try:
+            db = await self.get_db()
+            
+            # Prepare updates
+            updates = {
+                "itinerary": itinerary_data.get("itinerary", []),
+                "hotels": hotel_data,
+                "aiGeneration": {
+                    "generatedAt": datetime.utcnow(),
+                    "model": "custom_ai_v1",
+                    "confidence": ai_metadata.get("confidence", 0.85),
+                    "generation_time": ai_metadata.get("generation_time", "2.5 seconds"),
+                    "userFeedback": None
+                },
+                "status": "completed",
+                "updatedAt": datetime.utcnow()
+            }
+            
+            # Update destination overview if available
+            if "destination_overview" in itinerary_data:
+                dest_overview = itinerary_data["destination_overview"]
+                updates["metadata.destination.country"] = dest_overview.get("name", "").split(",")[-1].strip() if "," in dest_overview.get("name", "") else ""
+                
+            # Update budget breakdown if available
+            if "budget_summary" in itinerary_data:
+                budget_summary = itinerary_data["budget_summary"]
+                if "breakdown" in budget_summary:
+                    updates["metadata.budget.breakdown"] = budget_summary["breakdown"]
+            
+            # Update in database
+            await db.db.collection(self.collection_name).document(trip_id).update(updates)
+            
+            # Invalidate cache
+            await db.invalidate_cache(f"{self.collection_name}:{trip_id}")
+            
+            logger.info(f"Trip updated with AI results: {trip_id}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update trip with AI results {trip_id}: {str(e)}")
             raise

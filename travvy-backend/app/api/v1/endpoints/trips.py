@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, 
 from typing import List, Optional, Dict, Any
 import logging
 
-from app.core.security import get_current_user, require_permission, Permissions
+from app.core.security import get_current_user, get_current_user_optional, require_permission, Permissions
 from app.services.trip_service import TripService
 from app.services.ai_service import AIService
 from app.models.schemas import (
@@ -30,11 +30,12 @@ router = APIRouter()
 
 
 @router.post("/", response_model=TripResponse)
+@router.post("", response_model=TripResponse)  # Handle both with and without trailing slash
 @monitor_endpoint("create_trip")
 async def create_trip(
     trip_request: TripCreateRequest,
     background_tasks: BackgroundTasks,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service),
     ai_service: AIService = Depends(get_ai_service)
 ) -> TripResponse:
@@ -52,26 +53,38 @@ async def create_trip(
         Trip response with generation status
     """
     try:
-        # Create initial trip document
+        # Create initial trip document with status="generating"
         trip = await trip_service.create_trip(
             user_id=current_user["uid"],
             **trip_request.dict()
         )
         
-        # Queue AI generation as background task
-        # TODO: Implement process_trip_generation task
-        # task = process_trip_generation.delay(
-        #     trip_id=trip.trip_id,
-        #     user_preferences=current_user.get("preferences", {}),
-        #     conversation_context=trip_request.conversation_context or {}
-        # )
+        logger.info(f"Created trip with status 'generating': {trip.tripId}")
         
-        logger.info(f"Trip created and AI generation queued: {trip.trip_id}")
+        # Import here to avoid circular imports
+        from app.tasks.ai_tasks import process_trip_generation
+        
+        # Trigger Celery task for AI generation
+        conversation_context = {
+            "destination": trip_request.destination,
+            "start_date": trip_request.start_date,
+            "end_date": trip_request.end_date,
+            "budget": trip_request.budget,
+            "travelers": trip_request.travelers
+        }
+        
+        task = process_trip_generation.delay(
+            trip_id=trip.tripId,
+            user_preferences=current_user.get("preferences", {}),
+            conversation_context=conversation_context
+        )
+        
+        logger.info(f"Started AI generation task {task.id} for trip {trip.tripId}")
         
         return TripResponse(
-            trip_id=trip.trip_id,
+            trip_id=trip.tripId,
             status="generating",
-            estimated_completion="2-3 minutes",
+            message="Trip created, AI is generating your itinerary",
             task_id=task.id
         )
         
@@ -84,9 +97,10 @@ async def create_trip(
 
 
 @router.get("/", response_model=TripListResponse)
+@router.get("", response_model=TripListResponse)  # Handle both with and without trailing slash
 @monitor_endpoint("list_trips")
 async def list_user_trips(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -130,7 +144,7 @@ async def list_user_trips(
 @monitor_endpoint("get_trip")
 async def get_trip(
     trip_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service)
 ) -> TripDetail:
     """
@@ -177,7 +191,7 @@ async def get_trip(
 async def update_trip(
     trip_id: str,
     updates: TripUpdateRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service)
 ) -> TripDetail:
     """
@@ -230,7 +244,7 @@ async def update_trip(
 @monitor_endpoint("delete_trip")
 async def delete_trip(
     trip_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service)
 ) -> Dict[str, str]:
     """
@@ -275,7 +289,7 @@ async def optimize_trip_route(
     trip_id: str,
     optimization_request: TripOptimizationRequest,
     background_tasks: BackgroundTasks,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service)
 ) -> Dict[str, str]:
     """
@@ -328,7 +342,7 @@ async def optimize_trip_route(
 @monitor_endpoint("get_trip_status")
 async def get_trip_status(
     trip_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service)
 ) -> Dict[str, Any]:
     """
@@ -368,7 +382,7 @@ async def get_trip_status(
 @monitor_endpoint("duplicate_trip")
 async def duplicate_trip(
     trip_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional),
     trip_service: TripService = Depends(get_trip_service)
 ) -> TripResponse:
     """
@@ -395,10 +409,10 @@ async def duplicate_trip(
             user_id=current_user["uid"]
         )
         
-        logger.info(f"Trip duplicated: {trip_id} -> {new_trip.trip_id}")
+        logger.info(f"Trip duplicated: {trip_id} -> {new_trip.tripId}")
         
         return TripResponse(
-            trip_id=new_trip.trip_id,
+            trip_id=new_trip.tripId,
             status="completed",
             message="Trip duplicated successfully"
         )

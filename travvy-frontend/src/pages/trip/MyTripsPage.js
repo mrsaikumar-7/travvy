@@ -82,47 +82,15 @@ const MyTripsPage = () => {
     }
   };
 
-  // Mock trip data for demonstration
-  const mockTrips = [
-    {
-      tripId: '1',
-      metadata: {
-        title: 'Paris Adventure',
-        destination: { name: 'Paris, France' },
-        dates: { startDate: '2024-03-15', endDate: '2024-03-22' },
-      },
-      status: 'upcoming',
-      collaborators: { user1: { role: 'owner' }, user2: { role: 'editor' }, user3: { role: 'viewer' } },
-      progress: 85,
-      createdAt: '2024-02-01',
-    },
-    {
-      tripId: '2',
-      metadata: {
-        title: 'Tokyo Explorer',
-        destination: { name: 'Tokyo, Japan' },
-        dates: { startDate: '2024-04-20', endDate: '2024-04-28' },
-      },
-      status: 'planning',
-      collaborators: { user1: { role: 'owner' }, user2: { role: 'editor' } },
-      progress: 45,
-      createdAt: '2024-02-10',
-    },
-    {
-      tripId: '3',
-      metadata: {
-        title: 'Bali Retreat',
-        destination: { name: 'Bali, Indonesia' },
-        dates: { startDate: '2024-01-10', endDate: '2024-01-20' },
-      },
-      status: 'completed',
-      collaborators: { user1: { role: 'owner' }, user2: { role: 'viewer' } },
-      progress: 100,
-      createdAt: '2023-12-15',
-    },
-  ];
+  const displayTrips = trips; // Use real trip data from context
 
-  const displayTrips = mockTrips; // Use mock data for now
+  const calculateProgress = (trip) => {
+    if (trip.status === 'completed') return 100;
+    if (trip.status === 'generating') return 25;
+    if (trip.status === 'planning') return 50;
+    if (trip.itinerary && trip.itinerary.length > 0) return 75;
+    return 25;
+  };
 
   const getStatusColor = (status) => {
     const colors = {
@@ -321,7 +289,7 @@ const MyTripsPage = () => {
                       fontWeight: '500',
                     }}
                   >
-                    {trip.metadata.destination.name}
+                    {trip.metadata?.destination?.name || 'Unknown Destination'}
                   </div>
                 }
                 actions={[
@@ -351,7 +319,7 @@ const MyTripsPage = () => {
                   title={
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
                       <Text strong ellipsis style={{ fontSize: '16px' }}>
-                        {trip.metadata.title}
+                        {trip.metadata?.title || 'Untitled Trip'}
                       </Text>
                       <Tag color={getStatusColor(trip.status)}>
                         {getStatusText(trip.status)}
@@ -363,24 +331,24 @@ const MyTripsPage = () => {
                       <div>
                         <CalendarOutlined style={{ marginRight: '4px' }} />
                         <Text type="secondary" style={{ fontSize: '12px' }}>
-                          {new Date(trip.metadata.dates.startDate).toLocaleDateString()} - {' '}
-                          {new Date(trip.metadata.dates.endDate).toLocaleDateString()}
+                          {trip.metadata?.dates?.startDate ? new Date(trip.metadata.dates.startDate).toLocaleDateString() : 'N/A'} - {' '}
+                          {trip.metadata?.dates?.endDate ? new Date(trip.metadata.dates.endDate).toLocaleDateString() : 'N/A'}
                         </Text>
                       </div>
                       <div>
                         <TeamOutlined style={{ marginRight: '4px' }} />
                         <Text type="secondary" style={{ fontSize: '12px' }}>
-                          {Object.keys(trip.collaborators).length} collaborators
+                          {Object.keys(trip.collaborators || {}).length} collaborators
                         </Text>
                       </div>
                       <Progress
-                        percent={trip.progress}
+                        percent={calculateProgress(trip)}
                         size="small"
                         showInfo={false}
                         strokeColor="#1890ff"
                       />
                       <Text type="secondary" style={{ fontSize: '12px' }}>
-                        {trip.progress}% planned
+                        {calculateProgress(trip)}% planned
                       </Text>
                     </Space>
                   }

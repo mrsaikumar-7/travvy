@@ -50,7 +50,8 @@ def create_application() -> FastAPI:
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
-        lifespan=lifespan
+        lifespan=lifespan,
+        redirect_slashes=False  # Prevent 307 redirects for missing trailing slashes
     )
     
     # CORS Middleware - Allow development origins including ngrok

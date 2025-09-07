@@ -52,7 +52,7 @@ export const TripProvider = ({ children }) => {
         if (response.data.status === 'generating') {
           message.success('Trip creation started! AI is generating your itinerary...');
           // Optionally poll for completion
-          pollTripGeneration(response.data.trip_id);
+          pollTripGeneration(response.data.trip_id || response.data.tripId);
         }
         
         // Add to local state
@@ -69,7 +69,7 @@ export const TripProvider = ({ children }) => {
         console.warn('API call failed, creating mock trip:', apiError);
         
         const mockTrip = {
-          trip_id: 'demo-trip-' + Date.now(),
+          tripId: 'demo-trip-' + Date.now(),
           metadata: {
             title: tripData.destination + ' Adventure',
             destination: {
@@ -143,10 +143,10 @@ export const TripProvider = ({ children }) => {
       
       // Update local state
       setTrips(prev => 
-        prev.map(trip => trip.trip_id === tripId ? response.data : trip)
+        prev.map(trip => trip.tripId === tripId ? response.data : trip)
       );
       
-      if (currentTrip?.trip_id === tripId) {
+      if (currentTrip?.tripId === tripId) {
         setCurrentTrip(response.data);
       }
       
@@ -165,9 +165,9 @@ export const TripProvider = ({ children }) => {
       await apiService.trips.delete(tripId);
       
       // Remove from local state
-      setTrips(prev => prev.filter(trip => trip.trip_id !== tripId));
+      setTrips(prev => prev.filter(trip => trip.tripId !== tripId));
       
-      if (currentTrip?.trip_id === tripId) {
+      if (currentTrip?.tripId === tripId) {
         setCurrentTrip(null);
       }
       
