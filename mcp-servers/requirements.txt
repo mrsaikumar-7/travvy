@@ -1,0 +1,9 @@
+langchain-groq
+mcp
+langgraph
+lxml
+aiohttp
+pydantic
+mcp-use
+fast-flights
+beautifulsoup4
